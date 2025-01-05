@@ -1,0 +1,50 @@
+class PyramidFeatures(nn.Module):
+
+    def __init__(self, ch=[256, 512, 1024], channel_outs=[512, 256, 256], version='s'):
+        super(PyramidFeatures, self).__init__()
+        self.C3_size = ch[0]
+        self.C4_size = ch[1]
+        self.C5_size = ch[2]
+        self.channels_outs = channel_outs
+        self.version = version
+
+        if self.version.lower() in gains:
+
+            self.gd = gains[self.version.lower()]['gd']
+            self.gw = gains[self.version.lower()]['gw']
+        else:
+            self.gd = 0.33
+            self.gw = 0.5
+
+        self.re_channels_out()
+        self.concat = Concat()
+        self.P5 = Conv(self.C5_size, self.channels_outs[0], 1, 1)
+        self.P5_upsampled = nn.Upsample(scale_factor=2, mode='nearest')
+        self.conv1 = C3(self.channels_outs[0] + self.C4_size, self.channels_outs[0], self.get_depth(3), False)
+        self.P4 = Conv(self.channels_outs[0], self.channels_outs[1], 1, 1)
+        self.P4_upsampled = nn.Upsample(scale_factor=2, mode='nearest')
+        self.P3 = C3(self.channels_outs[1] + self.C3_size, self.channels_outs[1], self.get_depth(3), False)
+        self.out_shape = [ self.channels_outs[2], self.channels_outs[1], self.channels_outs[0]]
+
+    def get_depth(self, n):
+        return max(round(n * self.gd), 1) if n > 1 else n
+
+    def get_width(self, n):
+        return make_divisible(n * self.gw, 8)
+
+    def re_channels_out(self):
+        for idx, channel_out in enumerate(self.channels_outs):
+            self.channels_outs[idx] = self.get_width(channel_out)
+
+    def forward(self, inputs):
+        C3, C4, C5 = inputs
+        P5 = self.P5(C5) 
+        up5 = self.P5_upsampled(P5)
+        concat1 = self.concat([up5, C4])
+        conv1 = self.conv1(concat1)
+        P4 = self.P4(conv1)
+        up4 = self.P4_upsampled(P4)
+        concat2 = self.concat([C3, up4])
+        PP3 = self.P3(concat2)
+
+        return PP3, P4, P5

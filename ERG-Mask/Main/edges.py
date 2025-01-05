@@ -1,0 +1,21 @@
+R1 = self.relu(self.C1_down_channel(C1))
+R2 = self.relu(self.C2_down_channel(C2))
+R3 = self.relu(self.C3_down_channel(C3))
+R4 = self.relu(self.C4_down_channel(C4))
+R5 = self.relu(self.C5_down_channel(C5))
+so1_out = self.score_dsn1(R1)
+so2_out = self.score_dsn2(R2)
+so3_out = self.score_dsn3(R3)
+so4_out = self.score_dsn4(R4)
+so5_out = self.score_dsn4(R5)
+upsample = nn.UpsamplingBilinear2d(size)
+out1 = upsample(so1_out)
+out2 = upsample(so2_out)
+out3 = upsample(so3_out)
+out4 = upsample(so4_out)
+out5 = upsample(so5_out)
+fuse = torch.cat([out1, out2, out3, out4, out5], dim=1)
+final_out = self.score_final(fuse)
+results = [out1, out2, out3, out4, out5, final_out]
+results = [torch.sigmoid(r) for r in results]
+return results
